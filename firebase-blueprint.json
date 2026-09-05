@@ -1,0 +1,9 @@
+{
+  "rules": [
+    {
+      "collection": "assets",
+      "allowRead": "true",
+      "allowWrite": "true"
+    }
+  ]
+}

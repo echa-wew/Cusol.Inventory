@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { Asset, AssetFormData } from '../types';
 
 const STORAGE_KEY = 'cusol_it_assets';
@@ -8,70 +10,68 @@ export function useAssets() {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        setAssets(JSON.parse(stored));
-      } catch (e) {
-        console.error('Failed to parse assets from local storage');
-      }
-    } else {
-      // Seed with some initial data
-      const initialAssets: Asset[] = [
-        {
-          id: '1',
-          name: 'MacBook Pro M2 14"',
-          category: 'Laptop',
-          serialNumber: 'C02F123456',
-          status: 'Digunakan',
-          purchaseDate: '2023-01-15',
-          assignedTo: 'Budi Santoso',
-          location: 'Kantor Pusat - Lt 3',
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          name: 'Dell UltraSharp 27" Monitor',
-          category: 'Monitor',
-          serialNumber: 'CN-0ABCDE-12345-678-90AB',
-          status: 'Tersedia',
-          purchaseDate: '2023-02-20',
-          location: 'Gudang IT',
-          updatedAt: new Date().toISOString(),
+    const assetsRef = collection(db, 'assets');
+    const q = query(assetsRef, orderBy('updatedAt', 'desc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const loadedAssets: Asset[] = [];
+      snapshot.forEach((docSnapshot) => {
+        // Exclude id from data since we get it from docSnapshot.id
+        const { id, ...data } = docSnapshot.data();
+        loadedAssets.push({ id: docSnapshot.id, ...data } as Asset);
+      });
+      
+      // Automatic Migration from localStorage (runs if Firestore is empty)
+      if (loadedAssets.length === 0) {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          try {
+            const localAssets = JSON.parse(stored) as Asset[];
+            if (localAssets.length > 0) {
+              localAssets.forEach(async (asset) => {
+                const { id, ...data } = asset;
+                const docRef = doc(db, 'assets', id);
+                await setDoc(docRef, data);
+              });
+              // Clear local storage after migration
+              localStorage.removeItem(STORAGE_KEY);
+            }
+          } catch (e) {
+            console.error('Failed to parse local storage for migration');
+          }
         }
-      ];
-      setAssets(initialAssets);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(initialAssets));
-    }
-    setIsLoaded(true);
+      }
+      
+      setAssets(loadedAssets);
+      setIsLoaded(true);
+    }, (error) => {
+      console.error("Error fetching assets:", error);
+      setIsLoaded(true);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const saveAssets = (newAssets: Asset[]) => {
-    setAssets(newAssets);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newAssets));
-  };
-
-  const addAsset = (data: AssetFormData) => {
-    const newAsset: Asset = {
+  const addAsset = async (data: AssetFormData) => {
+    const newId = crypto.randomUUID();
+    const docRef = doc(db, 'assets', newId);
+    await setDoc(docRef, {
       ...data,
-      id: crypto.randomUUID(),
       updatedAt: new Date().toISOString(),
-    };
-    saveAssets([newAsset, ...assets]);
+    });
   };
 
-  const updateAsset = (id: string, data: AssetFormData) => {
-    saveAssets(
-      assets.map((asset) =>
-        asset.id === id
-          ? { ...asset, ...data, updatedAt: new Date().toISOString() }
-          : asset
-      )
-    );
+  const updateAsset = async (id: string, data: AssetFormData) => {
+    const docRef = doc(db, 'assets', id);
+    await updateDoc(docRef, {
+      ...data,
+      updatedAt: new Date().toISOString(),
+    });
   };
 
-  const deleteAsset = (id: string) => {
-    saveAssets(assets.filter((asset) => asset.id !== id));
+  const deleteAsset = async (id: string) => {
+    const docRef = doc(db, 'assets', id);
+    await deleteDoc(docRef);
   };
 
   return {

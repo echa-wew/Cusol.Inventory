@@ -9,13 +9,13 @@ import { DashboardStats } from './components/DashboardStats';
 import { AssetList } from './components/AssetList';
 import { AssetForm } from './components/AssetForm';
 import { Asset, AssetFormData } from './types';
-import { Server, Plus, FileDown } from 'lucide-react';
-import { generateMonthlyReport } from './lib/pdfExport';
+import { Server, Plus, FileDown, Loader2 } from 'lucide-react';
 
 export default function App() {
   const { assets, isLoaded, addAsset, updateAsset, deleteAsset } = useAssets();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const handleOpenAdd = () => {
     setEditingAsset(null);
@@ -34,6 +34,18 @@ export default function App() {
       addAsset(data);
     }
     setIsFormOpen(false);
+  };
+
+  const handleExportPdf = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      const { generateMonthlyReport } = await import('./lib/pdfExport');
+      generateMonthlyReport(assets);
+    } catch (error) {
+      console.error("Failed to generate PDF", error);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   if (!isLoaded) {
@@ -61,10 +73,11 @@ export default function App() {
             <span className="text-[11px] font-medium text-green-700 uppercase tracking-wider">GitHub CI/CD: Active</span>
           </div>
           <button
-            onClick={() => generateMonthlyReport(assets)}
-            className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-[11px] font-bold rounded-md hover:bg-slate-50 transition-colors hidden sm:flex"
+            onClick={handleExportPdf}
+            disabled={isGeneratingPdf}
+            className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-[11px] font-bold rounded-md hover:bg-slate-50 transition-colors hidden sm:flex disabled:opacity-50"
           >
-            <FileDown className="w-4 h-4" />
+            {isGeneratingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
             UNDUH LAPORAN PDF
           </button>
           <button

@@ -27,13 +27,18 @@ export default function App() {
     setIsFormOpen(true);
   };
 
-  const handleSubmit = (data: AssetFormData) => {
-    if (editingAsset) {
-      updateAsset(editingAsset.id, data);
-    } else {
-      addAsset(data);
+  const handleSubmit = async (data: AssetFormData) => {
+    try {
+      if (editingAsset) {
+        await updateAsset(editingAsset.id, data);
+      } else {
+        await addAsset(data);
+      }
+      setIsFormOpen(false);
+    } catch (error) {
+      console.error("Gagal menyimpan aset:", error);
+      alert("Gagal menyimpan data ke server. Mohon periksa koneksi internet Anda atau coba lagi beberapa saat.");
     }
-    setIsFormOpen(false);
   };
 
   const handleExportPdf = async () => {

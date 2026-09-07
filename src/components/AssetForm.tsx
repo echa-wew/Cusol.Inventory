@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 
 interface AssetFormProps {
   asset?: Asset | null;
-  onSubmit: (data: AssetFormData) => void;
+  onSubmit: (data: AssetFormData) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -12,6 +12,7 @@ const CATEGORIES = ['Laptop', 'Desktop', 'Monitor', 'Printer', 'Server', 'Networ
 const STATUSES: AssetStatus[] = ['Tersedia', 'Digunakan', 'Dalam Perbaikan', 'Rusak', 'Pensiun', 'POC'];
 
 export function AssetForm({ asset, onSubmit, onCancel }: AssetFormProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<AssetFormData>({
     name: '',
     category: 'Laptop',
@@ -42,9 +43,14 @@ export function AssetForm({ asset, onSubmit, onCancel }: AssetFormProps) {
     }
   }, [asset]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    setIsSubmitting(true);
+    try {
+      await onSubmit(formData);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -185,16 +191,18 @@ export function AssetForm({ asset, onSubmit, onCancel }: AssetFormProps) {
           <button
             type="button"
             onClick={onCancel}
-            className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            disabled={isSubmitting}
+            className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
           >
             Batal
           </button>
           <button
             type="submit"
             form="asset-form"
-            className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            disabled={isSubmitting}
+            className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 flex items-center gap-2"
           >
-            Simpan Aset
+            {isSubmitting ? 'Menyimpan...' : 'Simpan Aset'}
           </button>
         </div>
       </div>

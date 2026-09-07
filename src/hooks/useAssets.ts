@@ -6,7 +6,6 @@ const STORAGE_KEY = 'cusol_it_assets';
 export function useAssets() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [dbInstance, setDbInstance] = useState<any>(null);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -15,7 +14,6 @@ export function useAssets() {
       try {
         const { collection, onSnapshot, doc, setDoc, query, orderBy } = await import('firebase/firestore');
         const { db } = await import('../lib/firebase');
-        setDbInstance(db);
 
         const assetsRef = collection(db, 'assets');
         const q = query(assetsRef, orderBy('updatedAt', 'desc'));
@@ -66,10 +64,10 @@ export function useAssets() {
   }, []);
 
   const addAsset = async (data: AssetFormData) => {
-    if (!dbInstance) return;
     const { doc, setDoc } = await import('firebase/firestore');
+    const { db } = await import('../lib/firebase');
     const newId = crypto.randomUUID();
-    const docRef = doc(dbInstance, 'assets', newId);
+    const docRef = doc(db, 'assets', newId);
     await setDoc(docRef, {
       ...data,
       updatedAt: new Date().toISOString(),
@@ -77,9 +75,9 @@ export function useAssets() {
   };
 
   const updateAsset = async (id: string, data: AssetFormData) => {
-    if (!dbInstance) return;
     const { doc, updateDoc } = await import('firebase/firestore');
-    const docRef = doc(dbInstance, 'assets', id);
+    const { db } = await import('../lib/firebase');
+    const docRef = doc(db, 'assets', id);
     await updateDoc(docRef, {
       ...data,
       updatedAt: new Date().toISOString(),
@@ -87,9 +85,9 @@ export function useAssets() {
   };
 
   const deleteAsset = async (id: string) => {
-    if (!dbInstance) return;
     const { doc, deleteDoc } = await import('firebase/firestore');
-    const docRef = doc(dbInstance, 'assets', id);
+    const { db } = await import('../lib/firebase');
+    const docRef = doc(db, 'assets', id);
     await deleteDoc(docRef);
   };
 

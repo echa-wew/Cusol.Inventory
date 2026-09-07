@@ -1,6 +1,4 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import { Asset, AssetFormData } from '../types';
 
 const STORAGE_KEY = 'cusol_it_assets';
@@ -8,53 +6,70 @@ const STORAGE_KEY = 'cusol_it_assets';
 export function useAssets() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [dbInstance, setDbInstance] = useState<any>(null);
 
   useEffect(() => {
-    const assetsRef = collection(db, 'assets');
-    const q = query(assetsRef, orderBy('updatedAt', 'desc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const loadedAssets: Asset[] = [];
-      snapshot.forEach((docSnapshot) => {
-        // Exclude id from data since we get it from docSnapshot.id
-        const { id, ...data } = docSnapshot.data();
-        loadedAssets.push({ id: docSnapshot.id, ...data } as Asset);
-      });
-      
-      // Automatic Migration from localStorage (runs if Firestore is empty)
-      if (loadedAssets.length === 0) {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          try {
-            const localAssets = JSON.parse(stored) as Asset[];
-            if (localAssets.length > 0) {
-              localAssets.forEach(async (asset) => {
-                const { id, ...data } = asset;
-                const docRef = doc(db, 'assets', id);
-                await setDoc(docRef, data);
-              });
-              // Clear local storage after migration
-              localStorage.removeItem(STORAGE_KEY);
-            }
-          } catch (e) {
-            console.error('Failed to parse local storage for migration');
-          }
-        }
-      }
-      
-      setAssets(loadedAssets);
-      setIsLoaded(true);
-    }, (error) => {
-      console.error("Error fetching assets:", error);
-      setIsLoaded(true);
-    });
+    let unsubscribe: (() => void) | undefined;
 
-    return () => unsubscribe();
+    const initFirebase = async () => {
+      try {
+        const { collection, onSnapshot, doc, setDoc, query, orderBy } = await import('firebase/firestore');
+        const { db } = await import('../lib/firebase');
+        setDbInstance(db);
+
+        const assetsRef = collection(db, 'assets');
+        const q = query(assetsRef, orderBy('updatedAt', 'desc'));
+        
+        unsubscribe = onSnapshot(q, (snapshot) => {
+          const loadedAssets: Asset[] = [];
+          snapshot.forEach((docSnapshot) => {
+            const { id, ...data } = docSnapshot.data();
+            loadedAssets.push({ id: docSnapshot.id, ...data } as Asset);
+          });
+          
+          if (loadedAssets.length === 0) {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+              try {
+                const localAssets = JSON.parse(stored) as Asset[];
+                if (localAssets.length > 0) {
+                  localAssets.forEach(async (asset) => {
+                    const { id, ...data } = asset;
+                    const docRef = doc(db, 'assets', id);
+                    await setDoc(docRef, data);
+                  });
+                  localStorage.removeItem(STORAGE_KEY);
+                }
+              } catch (e) {
+                console.error('Failed to parse local storage for migration');
+              }
+            }
+          }
+          
+          setAssets(loadedAssets);
+          setIsLoaded(true);
+        }, (error) => {
+          console.error("Error fetching assets:", error);
+          setIsLoaded(true);
+        });
+      } catch (error) {
+        console.error("Failed to initialize Firebase", error);
+        setIsLoaded(true);
+      }
+    };
+
+    initFirebase();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const addAsset = async (data: AssetFormData) => {
+    if (!dbInstance) return;
+    const { doc, setDoc } = await import('firebase/firestore');
     const newId = crypto.randomUUID();
-    const docRef = doc(db, 'assets', newId);
+    const docRef = doc(dbInstance, 'assets', newId);
     await setDoc(docRef, {
       ...data,
       updatedAt: new Date().toISOString(),
@@ -62,7 +77,9 @@ export function useAssets() {
   };
 
   const updateAsset = async (id: string, data: AssetFormData) => {
-    const docRef = doc(db, 'assets', id);
+    if (!dbInstance) return;
+    const { doc, updateDoc } = await import('firebase/firestore');
+    const docRef = doc(dbInstance, 'assets', id);
     await updateDoc(docRef, {
       ...data,
       updatedAt: new Date().toISOString(),
@@ -70,7 +87,9 @@ export function useAssets() {
   };
 
   const deleteAsset = async (id: string) => {
-    const docRef = doc(db, 'assets', id);
+    if (!dbInstance) return;
+    const { doc, deleteDoc } = await import('firebase/firestore');
+    const docRef = doc(dbInstance, 'assets', id);
     await deleteDoc(docRef);
   };
 
